@@ -1,4 +1,5 @@
-#!/usr/bin/python2
+#!/usr/bin/python
+###############################################################################
 # Copyright (C) 2013 Joe Rawson
 #
 # This program is free software: you can redistribute it and/or modify
@@ -14,13 +15,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
+###############################################################################
+#
 # Need to load the scores, if they exist, and connect to irc, displaying
-# a welcome message.
+# a welcome message, then waiting.
 #
 # Scores should be kept in a class which will hold a nick -> score dict
 # object, and at the end of every question will dump the dict to json
-# where it can be loaded from. This might get weird if people start using
-# weird nicks, but we'll cross that road when we get to it.
+# where it can be loaded from.
 #
 # irc connection should be a class, and we should use twisted. We don't
 # really care if people come and go, since everyone in the channel is
@@ -29,22 +31,21 @@
 # If they haven't scored before, add them to the scoreboard and give them
 # their points, else, add their points to their total. Then dump the json.
 #
-# This bot requires there to be a ../questions/ directory with text files
-# in it. These files are named after there genres, so "80s Films.txt"
-# and the like. While the bot is running, it will randomly choose a
+# This bot requires there to be a ./questions/ directory with text files
+# in it full of questions.  While the bot is running, it will randomly choose a
 # file from this directory, open it, randomly choose a line, which is
-# a question*answer pair, then load that into a structure to be asked.
+# a question`answer pair, then load that into a structure to be asked.
 #
-# Once the question is loaded, the bot will ask the IRC channel the
+# Once the question is started, the bot will ask the IRC channel the
 # question, wait a period of time, show a character, then ask the question
-# again.
+# again. After 3 clues revealed, it will quit the question and reveal the
+# answer, and the bot will start again.
+#
+# The bots libraries are kept in ./lib and imported from there.
 #
 # The bot should respond to /msgs, so that users can check their scores,
 # and admins can give admin commands, like die, show all scores, edit
 # player scores, etc. Commands should be easy to implement.
-#
-# Every so often between questions the bot should list the top ranked
-# players, wait some, then continue.
 #
 
 import json
@@ -66,22 +67,38 @@ class triviabot(irc.IRCClient):
     '''
     This is the irc bot portion of the trivia bot.
 
-    It implements the whole program so is kinda big. The algorithm is
-    implemented by a series of callbacks, initiated by an admin on the
-    server.
+    It should really not implement the whole program.
+
+    It should manage the connection to the irc server
+    and manage the traffic to-and-from.
+
+    We should figure out where the program should go.
+    (Probaby in its own class.)
     '''
     def __init__(self):
+        # We need an Answer class to hide the answers.
         self._answer = Answer()
+        # Questions are trivial, so we just store the string.
         self._question = ''
+        # Need to store the scores in a dict.
         self._scores = {}
+        # Initialize the number of clues we've given.
         self._clue_number = 0
+        # Know who our masters are.
         self._admins = list(config.ADMINS)
+        # Know where we're connecting to.
         self._game_channel = config.GAME_CHANNEL
+        # This should be more configurable.
         self._current_points = 5
+        # Know where our questions are kept.
         self._questions_dir = config.Q_DIR
+        # LoopingCall is the twisted method that implements the state-machine.
         self._lc = LoopingCall(self._play_game)
+        # Loads the game.
         self._load_game()
+        # Implements a voting counter.
         self._votes = 0
+        # A list to hold on to who has voted.
         self._voters = []
 
     def _get_nickname(self):
@@ -111,6 +128,7 @@ class triviabot(irc.IRCClient):
     def _play_game(self):
         '''
         Implements the main loop of the game.
+        Should be moved to a game class or something.
         '''
         points = {0: 5,
                   1: 3,
@@ -169,6 +187,7 @@ class triviabot(irc.IRCClient):
         Parses out each message and initiates doing the right thing
         with it.
         '''
+        print('Because I don\'t know what the value of user is:' + user)
         user, temp = user.split('!')
         print(user+" : "+channel+" : "+msg)
         # need to strip off colors if present.
@@ -178,6 +197,7 @@ class triviabot(irc.IRCClient):
         except IndexError:
             return
 
+        # TODO: Should break here and pass to a game-specific thing.
         # parses each incoming line, and sees if it's a command for the bot.
         try:
             if (msg[0] == "?"):
@@ -202,6 +222,8 @@ class triviabot(irc.IRCClient):
         '''
         Congratulates the winner for guessing correctly and assigns
         points appropriately, then signals that it was guessed.
+
+        Belongs in the game class.
         '''
         if channel != self._game_channel:
             self.msg(channel,
@@ -234,16 +256,18 @@ class triviabot(irc.IRCClient):
         Replies differently if you are an admin or a regular user.
         Only responds to the user since there could be a game in
         progress.
+
+        Belongs in the game class.
         '''
         try:
             self._admins.index(user)
         except:
             self._cmsg(user, "I'm nameless's trivia bot.")
-            self._cmsg(user, "Commands: score, standings, giveclue, help, "
+            self._cmsg(user, "Commands: score, giveclue, help, "
                        "next, source")
             return
         self._cmsg(user, "I'm nameless's trivia bot.")
-        self._cmsg(user, "Commands: score, standings, giveclue, help, next, "
+        self._cmsg(user, "Commands: score, giveclue, help, next, "
                    "skip, source")
         self._cmsg("Admin commands: die, set <user> <score>, start, stop, "
                    "save")
@@ -263,12 +287,13 @@ class triviabot(irc.IRCClient):
 
         Need to differentiate between priviledged users and regular
         users.
+
+        Belongs in the game class.
         '''
         # set up command dicts.
         unpriviledged_commands = {'score': self._score,
                                   'help': self._help,
                                   'source': self._show_source,
-                                  'standings': self._standings,
                                   'giveclue': self._give_clue,
                                   'next': self._next_vote,
                                   'skip': self._next_question
@@ -301,9 +326,8 @@ class triviabot(irc.IRCClient):
 
     def _next_vote(self, args, user, channel):
         '''Implements user voting for the next question.
-
         Need to keep track of who voted, and how many votes.
-
+        Should go in game class.
         '''
         if not self._lc.running:
             self._gmsg("We aren't playing right now.")
@@ -330,6 +354,9 @@ class triviabot(irc.IRCClient):
         Starts the trivia game.
 
         TODO: Load scores from last game, if any.
+
+        This should try to be in a game class,
+        but might have to stay here because it involves the loopback function.
         '''
         if self._lc.running:
             return
@@ -341,6 +368,7 @@ class triviabot(irc.IRCClient):
         '''
         Stops the game and thanks people for playing,
         then saves the scores.
+        Should be in game class.
         '''
         if not self._lc.running:
             return
@@ -356,6 +384,7 @@ class triviabot(irc.IRCClient):
     def _save_game(self, *args):
         '''
         Saves the game to the data directory.
+        Should be in game class.
         '''
         if not path.exists(config.SAVE_DIR):
             makedirs(config.SAVE_DIR)
@@ -366,6 +395,7 @@ class triviabot(irc.IRCClient):
     def _load_game(self):
         '''
         Loads the running data from previous games.
+        Game class.
         '''
         # ensure initialization
         self._scores = {}
@@ -386,6 +416,9 @@ class triviabot(irc.IRCClient):
     def _set_user_score(self, args, user, channel):
         '''
         Administrative action taken to adjust scores, if needed.
+
+        TODO: Should handle relative increment/decrement.
+        Should go in game class.
         '''
         try:
             self._scores[args[0]] = int(args[1])
@@ -407,6 +440,8 @@ class triviabot(irc.IRCClient):
     def _score(self, args, user, channel):
         '''
         Tells the user their score.
+
+        Should be in game class.
         '''
         try:
             self._cmsg(user, "Your current score is: %s" %
@@ -417,6 +452,8 @@ class triviabot(irc.IRCClient):
     def _next_question(self, args, user, channel):
         '''
         Administratively skips the current question.
+
+        Should be in game class.
         '''
         if not self._lc.running:
             self._gmsg("We are not playing right now.")
@@ -431,7 +468,9 @@ class triviabot(irc.IRCClient):
         '''
         Tells the user the complete standings in the game.
 
-        TODO: order them.
+        Goes in game class, but really isn't viable anymore.
+        Should only give top 5 and the standing of the person who called
+        it.
         '''
         self._cmsg(user, "The current trivia standings are: ")
         sorted_scores = sorted(self._scores.iteritems(), key=lambda k, v:
@@ -441,6 +480,10 @@ class triviabot(irc.IRCClient):
             self._cmsg(user, str(formatted_score))
 
     def _give_clue(self, args, user, channel):
+        ''' Repeats a clue. Really, should force the bot to advance the glue,
+            even if it goes out of bounds.
+            Should go in game class.
+        '''
         if not self._lc.running:
             self._gmsg("we are not playing right now.")
             return
@@ -452,6 +495,8 @@ class triviabot(irc.IRCClient):
         '''
         Selects a new question from the questions directory and
         sets it.
+
+        Should be in game class.
         '''
         damaged_question = True
         while damaged_question:
@@ -472,6 +517,7 @@ class triviabot(irc.IRCClient):
 
 
 class ircbotFactory(ClientFactory):
+    ''' Factory used to generate the bot. '''
     protocol = triviabot
 
     def __init__(self, nickname=config.DEFAULT_NICK):

@@ -1,5 +1,6 @@
 from random import randint
 
+
 class Answer:
     '''
     This class implements storage for an answer you want to conceil
@@ -7,9 +8,11 @@ class Answer:
 
     Methods:
 
-    give_clue(): returns the masked string after revealing a letter and saving the mask.
+    give_clue(): returns the masked string after revealing
+                 a letter and saving the mask.
     get_clue(): returns the masked string.
-    set_answer('string'): makes this object reusable, sets a new answer and clue mask.
+    set_answer('string'): makes this object reusable,
+                          sets a new answer and clue mask.
     reveal(): returns the answer string.
     '''
 
