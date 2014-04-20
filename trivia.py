@@ -52,7 +52,7 @@ import json
 from os import listdir, path, makedirs
 from random import choice
 
-from twisted.words.protocols import irc
+from twisted.words.protocols.irc import IRCClient
 from twisted.internet import reactor
 from twisted.internet import ssl
 from twisted.internet.protocol import ClientFactory
@@ -63,7 +63,7 @@ from lib.answer import Answer
 import config
 
 
-class triviabot(irc.IRCClient):
+class triviabot(IRCClient):
     '''
     This is the irc bot portion of the trivia bot.
 
@@ -115,14 +115,12 @@ class triviabot(irc.IRCClient):
         """
         Write a colorized message.
         """
-
         self.msg(dest, "%s%s" % (config.COLOR_CODE, msg))
 
     def _gmsg(self, msg):
         """
         Write a message to the channel playing the trivia game.
         """
-
         self._cmsg(self._game_channel, msg)
 
     def _play_game(self):
@@ -200,7 +198,12 @@ class triviabot(irc.IRCClient):
         # TODO: Should break here and pass to a game-specific thing.
         # parses each incoming line, and sees if it's a command for the bot.
         try:
-            if (msg[0] == "?"):
+            # First see if we match the answer, then process commands
+            # and fall-through if no match.
+            if msg.lower().strip() == self._answer.answer.lower():
+                self._winner(user, channel)
+                self._save_game()
+            elif (msg[0] == "?"):
                 command = msg.replace('?', '').split()[0]
                 args = msg.replace('?', '').split()[1:]
                 self.select_command(command, args, user, channel)
@@ -210,11 +213,6 @@ class triviabot(irc.IRCClient):
                 args = msg.replace(self.nickname, '').split()[2:]
                 self.select_command(command, args, user, channel)
                 return
-            # if not, try to match the message to the answer.
-            else:
-                if msg.lower().strip() == self._answer.answer.lower():
-                    self._winner(user, channel)
-                    self._save_game()
         except:
             return
 
@@ -517,7 +515,7 @@ class triviabot(irc.IRCClient):
 
 
 class ircbotFactory(ClientFactory):
-    ''' Factory used to generate the bot. '''
+    ''' Factory used to generate a bot. '''
     protocol = triviabot
 
     def __init__(self, nickname=config.DEFAULT_NICK):
