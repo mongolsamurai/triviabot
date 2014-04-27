@@ -17,6 +17,8 @@
 #
 ###############################################################################
 #
+# Algorithm:
+#
 # Need to load the scores, if they exist, and connect to irc, displaying
 # a welcome message, then waiting.
 #
@@ -47,6 +49,16 @@
 # and admins can give admin commands, like die, show all scores, edit
 # player scores, etc. Commands should be easy to implement.
 #
+###############################################################################
+# TODO:
+# Make more modular: should have a trivia class that only knows the game, a
+# parser class that acts as the interface between the irc client class and the
+# game, since the game should only worry about the game, and then the irc
+# client class and factory needed for twisted.
+# Make tests: modularity can bring unit-tests into being so that we can test
+# refactoring before breaking the world.
+#
+###############################################################################
 
 import json
 from os import listdir, path, makedirs
