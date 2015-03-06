@@ -1,4 +1,9 @@
 from answer import Answer
+import json
+from os import listdir, path, makedirs
+from random import choice
+import config
+
 
 class trivia:
     ''' This class implements the trivia game itself.
@@ -29,7 +34,6 @@ class trivia:
     def play_game(self, msg):
         '''
         Implements the main loop of the game.
-        Should be moved to a game class or something.
         '''
         points = {0: 5,
                   1: 3,
@@ -268,16 +272,6 @@ class trivia:
             self._cmsg(user, args[0]+" not in scores database.")
             return
         self._cmsg(user, args[0]+" score set to "+args[1])
-
-    def _die(self, *args):
-        '''
-        Terminates execution of the bot.
-        Need to dig into twisted to figure out how this happens.
-        '''
-        global reactor
-        self.quit(message='This is triviabot, signing off.')
-        reactor.stop()
-        # figure out how to kill the bot
 
     def _score(self, args, user, channel):
         '''

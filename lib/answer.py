@@ -6,14 +6,6 @@ class Answer:
     This class implements storage for an answer you want to conceil
     and give clues 1 letter at a time.
 
-    Methods:
-
-    give_clue(): returns the masked string after revealing
-                 a letter and saving the mask.
-    get_clue(): returns the masked string.
-    set_answer('string'): makes this object reusable,
-                          sets a new answer and clue mask.
-    reveal(): returns the answer string.
     '''
 
     def __init__(self, answer='None'):
@@ -27,6 +19,9 @@ class Answer:
                 self._masked_answer += i
 
     def give_clue(self):
+        ''' Returns the masked string after revealing
+        a letter and saving the mask.
+        '''
         if self._answer == self._masked_answer:
             return self._masked_answer
 
@@ -50,9 +45,13 @@ class Answer:
         return self._masked_answer
 
     def set_answer(self, new_answer):
+        '''Makes this object reusable,
+        sets a new answer and clue mask.
+        '''
         self.__init__(answer=new_answer)
 
     def _reveal(self):
+        '''Returns the answer string.'''
         return self._answer
 
     answer = property(_reveal)

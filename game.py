@@ -52,7 +52,7 @@
 ###############################################################################
 # TODO:
 # Make more modular: should have a trivia class that only knows the game, a
-# parser class that acts as the interface between the irc client class and the
+# parser that acts as the interface between the irc client and the
 # game, since the game should only worry about the game, and then the irc
 # client class and factory needed for twisted.
 # Make tests: modularity can bring unit-tests into being so that we can test
@@ -60,9 +60,7 @@
 #
 ###############################################################################
 
-import json
-from os import listdir, path, makedirs
-from random import choice
+import re
 
 from twisted.words.protocols.irc import IRCClient
 from twisted.internet import reactor
@@ -94,6 +92,9 @@ class triviabot(IRCClient):
         self._game_channel = config.GAME_CHANNEL
         # Get a handle on the game being saved in the factory.
         self._game = self.factory._game
+        # Make a sanitizing regex for the input to clean up bad IRC messages
+        # before passing them on.
+        self.regex = re.compile("\x1f|\x02|\x0f|\x16|\x03(?:\d{1,2}(?:,\d{1,2})?)?", re.UNICODE)
         # LoopingCall is the twisted method that implements the state-machine.
         # The game class is responsible for maintaining its state and sending
         # game messages.
@@ -143,17 +144,13 @@ class triviabot(IRCClient):
         '''
         Parse incoming message and pass it to the game's message handler.
         '''
-        print('Because I don\'t know what the value of user is:' + user)
+        print('''Because I don't know what the value of user is:''' + user)
         nick, temp = user.split('!')
         print(nick+" : "+channel+" : "+msg)
-        # need to strip off colors if present.
-        try:
-            while not msg[0].isalnum() and not msg[0] == '?':
-                msg = msg[1:]
-        except IndexError:
-            return
+        # need to strip off colors and special characters if present.
+        msg = self.regex('', msg)
 
-        # TODO: Should break here and pass to a game-specific thing.
+        # TODO: Should break here and pass to the interface thing.
         # parses each incoming line, and sees if it's a command for the bot.
         try:
             # First see if we match the answer, then process commands
@@ -180,6 +177,16 @@ class triviabot(IRCClient):
         Currently just reports them.
         '''
         print("CTCP recieved: "+user+":"+channel+": "+msg[0][0]+" "+msg[0][1])
+
+    def _die(self, *args):
+        '''
+        Terminates execution of the bot.
+        Need to dig into twisted to figure out how this happens.
+        '''
+        global reactor
+        self.quit(message='This is triviabot, signing off.')
+        reactor.stop()
+        # figure out how to kill the bot
 
 
 class ircbotFactory(ClientFactory):
