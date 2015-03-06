@@ -117,6 +117,8 @@ class trivia:
                        str(self._current_points))
         self._clue_number = 0
         self._get_new_question()
+        self._lc.stop()
+        self._lc.start(config.WAIT_INTERVAL)
 
     def _show_source(self, args, user, channel):
         '''
