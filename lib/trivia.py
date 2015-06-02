@@ -5,6 +5,48 @@ from random import choice
 import config
 
 
+class interface:
+    ''' The interface to parse string input and
+    pass it to the trivia game.
+
+    It should be instantiated in the trivia class.
+    It should return commands parsed from the message input,
+    as well as the arguments for the command.
+    It should sanitize the input.
+    '''
+    def __init__(self, config):
+        # Make a sanitizing regex for the input to clean up bad IRC messages
+        # before passing them on.
+        self.sanitizing_regex = re.compile("\x1f|\x02|\x0f|\x16|\x03(?:\d{1,2}(?:,\d{1,2})?)?", re.UNICODE)
+
+    def parse_msg(self, user, channel, msg):
+    ''' Parses input from irc. '''
+        nick, temp = user.split('!')
+        print(nick+" : "+channel+" : "+msg)
+        # need to strip off colors and special characters if present.
+        msg = self.sanitizing_regex('', msg)
+
+        # parses each incoming line, and sees if it's a command for the bot.
+        try:
+            # First see if we match the answer, then process commands
+            # and fall-through if no match.
+            if msg.lower().strip() == self._answer.answer.lower():
+                self._winner(nick, channel)
+                self._save_game()
+            elif (msg[0] == "?"):
+                command = msg.replace('?', '').split()[0]
+                args = msg.replace('?', '').split()[1:]
+                self.select_command(command, args, nick, channel)
+                return
+            elif (msg.split()[0].find(self.nickname) == 0):
+                command = msg.split()[1]
+                args = msg.replace(self.nickname, '').split()[2:]
+                self.select_command(command, args, nick, channel)
+                return
+        except:
+            return
+
+
 class trivia:
     ''' This class implements the trivia game itself.
     Later on, I will finish documenting its methods here.
@@ -30,6 +72,11 @@ class trivia:
         self._voters = []
         # Hold on to the configuration.
         self._config = config
+        # Make an interface instance
+        self._interface = interface()
+
+    def parse_msg(self, user, channel, msg):
+        [cmd, args] = self._interface.parse_msg(user, channel, msg)
 
     def play_game(self, msg):
         '''
@@ -266,7 +313,6 @@ class trivia:
         Administrative action taken to adjust scores, if needed.
 
         TODO: Should handle relative increment/decrement.
-        Should go in game class.
         '''
         try:
             self._scores[args[0]] = int(args[1])

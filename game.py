@@ -1,6 +1,6 @@
 #!/usr/bin/python
 ###############################################################################
-# Copyright (C) 2013 Joe Rawson
+# Copyright (C) 2013-2015 Joe Rawson
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -63,8 +63,7 @@
 import re
 
 from twisted.words.protocols.irc import IRCClient
-from twisted.internet import reactor
-from twisted.internet import ssl
+from twisted.internet import reactor, ssl
 from twisted.internet.protocol import ClientFactory
 from twisted.internet.task import LoopingCall
 
@@ -73,7 +72,7 @@ from lib.trivia import trivia
 import config
 
 
-class triviabot(IRCClient):
+class gamebot(IRCClient):
     '''
     This is the irc bot portion of the trivia bot.
 
@@ -92,9 +91,6 @@ class triviabot(IRCClient):
         self._game_channel = config.GAME_CHANNEL
         # Get a handle on the game being saved in the factory.
         self._game = self.factory._game
-        # Make a sanitizing regex for the input to clean up bad IRC messages
-        # before passing them on.
-        self.regex = re.compile("\x1f|\x02|\x0f|\x16|\x03(?:\d{1,2}(?:,\d{1,2})?)?", re.UNICODE)
         # LoopingCall is the twisted method that implements the state-machine.
         # The game class is responsible for maintaining its state and sending
         # game messages.
@@ -144,32 +140,7 @@ class triviabot(IRCClient):
         '''
         Parse incoming message and pass it to the game's message handler.
         '''
-        print('''Because I don't know what the value of user is:''' + user)
-        nick, temp = user.split('!')
-        print(nick+" : "+channel+" : "+msg)
-        # need to strip off colors and special characters if present.
-        msg = self.regex('', msg)
-
-        # TODO: Should break here and pass to the interface thing.
-        # parses each incoming line, and sees if it's a command for the bot.
-        try:
-            # First see if we match the answer, then process commands
-            # and fall-through if no match.
-            if msg.lower().strip() == self._answer.answer.lower():
-                self._winner(nick, channel)
-                self._save_game()
-            elif (msg[0] == "?"):
-                command = msg.replace('?', '').split()[0]
-                args = msg.replace('?', '').split()[1:]
-                self.select_command(command, args, nick, channel)
-                return
-            elif (msg.split()[0].find(self.nickname) == 0):
-                command = msg.split()[1]
-                args = msg.replace(self.nickname, '').split()[2:]
-                self.select_command(command, args, nick, channel)
-                return
-        except:
-            return
+        self._game.parse_msg(user, channel, msg)
 
     def ctcpQuery(self, user, channel, msg):
         '''
@@ -186,14 +157,14 @@ class triviabot(IRCClient):
         global reactor
         self.quit(message='This is triviabot, signing off.')
         reactor.stop()
-        # figure out how to kill the bot
+        # TODO: figure out how to kill the bot
 
 
 class ircbotFactory(ClientFactory):
     ''' Factory used to generate a bot instance on the server. '''
-    protocol = triviabot
+    protocol = gamebot
 
-    def __init__(self, nickname=config.DEFAULT_NICK):
+    def __init__(self, nickname=config.NICK):
         self.nickname = nickname
         self.running = False
         self.lineRate = config.LINE_RATE
